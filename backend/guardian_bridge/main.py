@@ -1,43 +1,33 @@
-from serial_manager import SerialManager
-from packet_validator import PacketValidator
-from csi_parser import CSIParser
-from dataset_writer import DatasetWriter
+from runtime import GuardianRuntime
 
 
-serial_manager = SerialManager()
-writer = DatasetWriter()
+def main():
 
-print("Guardian Bridge Started")
+    runtime = GuardianRuntime()
 
-try:
+    runtime.start("../../datasets/raw/test_session.jsonl")
 
-    while True:
+    print("Guardian Bridge Started\n")
 
-        line = serial_manager.read()
+    try:
 
-        if not line:
-            continue
+        while True:
 
-        line = line.decode(errors="ignore").strip()
+            packet = runtime.process_packet()
 
-        if not PacketValidator.is_valid(line):
-            continue
+            if packet:
 
-        packet = CSIParser.parse(line)
+                print(packet)
 
-        if packet is None:
-            continue
+    except KeyboardInterrupt:
 
-        writer.save(packet)
+        print("\nStopping Guardian Bridge...")
 
-        print(packet)
+    finally:
 
-except KeyboardInterrupt:
+        runtime.stop()
 
-    print("Stopping...")
 
-finally:
+if __name__ == "__main__":
 
-    writer.close()
-
-    serial_manager.close()
+    main()
