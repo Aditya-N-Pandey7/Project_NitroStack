@@ -22,3 +22,10 @@ Thumbs.db
 
 # Environment
 .env
+
+# Guardian Bridge output
+backend/guardian_bridge/guardian_data.jsonl
+
+# Python cache
+__pycache__/
+*.pyc
