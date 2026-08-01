@@ -1,3 +1,9 @@
+import { getAlert } from "../services/alert-state.js";
+import { getMonitorState } from "../services/monitor-state.js";
+import {
+  getLiveVitals,
+  getRespirationHistory,
+} from "../services/live-state.js";
 import express from "express";
 import cors from "cors";
 
@@ -165,6 +171,18 @@ app.post("/api/monitoring/stop", (req, res) => {
     sessionId
 });
 
+});
+app.get("/api/live", (req, res) => {
+  res.json(getLiveVitals());
+});
+app.get("/api/live-history", (req, res) => {
+  res.json(getRespirationHistory());
+});
+app.get("/api/monitor", (req, res) => {
+  res.json(getMonitorState());
+});
+app.get("/api/alert", (req, res) => {
+  res.json(getAlert());
 });
 app.listen(PORT, () => {
 

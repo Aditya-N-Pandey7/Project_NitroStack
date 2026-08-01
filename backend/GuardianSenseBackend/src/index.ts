@@ -13,6 +13,8 @@ import 'dotenv/config';
 import { McpApplicationFactory } from '@nitrostack/core';
 import { AppModule } from './app.module.js';
 
+// Start Express REST API
+import './api/server.js';
 /**
  * Bootstrap the application
  */
