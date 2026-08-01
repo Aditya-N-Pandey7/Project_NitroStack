@@ -1,82 +1,72 @@
 import { ToolDecorator as Tool, ExecutionContext, z } from "@nitrostack/core";
-import { SessionManager } from "../../services/session-manager.js";
-import { DeviceRegistry } from "../../services/device-registry.js";
-import { GuardianStateManager } from "../../services/guardian-state-manager.js";
+import {
+  sessionManager,
+  deviceRegistry,
+  guardianStateManager,
+} from "../../api/context.js";
+
 export class GuardianTools {
-  private sessionManager = new SessionManager();
-  private deviceRegistry = new DeviceRegistry();
-  private stateManager = new GuardianStateManager();
   @Tool({
-  name: "get_system_status",
-  description: "Returns GuardianSense backend status.",
-  inputSchema: z.object({})
-})
-async getSystemStatus(input: any, ctx: ExecutionContext) {
-
-  ctx.logger.info("System status requested");
-
-  return this.stateManager.getState();
-}
-@Tool({
-  name: "get_connected_devices",
-  description: "Returns all registered Guardian Bridge devices.",
-  inputSchema: z.object({})
-})
-async getConnectedDevices(input: any, ctx: ExecutionContext) {
-
-  ctx.logger.info("Connected devices requested");
-
-  return this.deviceRegistry.getAllDevices();
-
-}
-@Tool({
-  name: "start_monitoring",
-  description: "Starts a GuardianSense monitoring session.",
-  inputSchema: z.object({
-    deviceId: z.string().describe("Guardian Bridge device ID")
+    name: "get_system_status",
+    description: "Returns GuardianSense backend status.",
+    inputSchema: z.object({}),
   })
-})
-async startMonitoring(input: any, ctx: ExecutionContext) {
+  async getSystemStatus(_input: unknown, ctx: ExecutionContext) {
+    ctx.logger.info("System status requested");
+    return guardianStateManager.getState();
+  }
 
-  ctx.logger.info("Starting monitoring", {
-    deviceId: input.deviceId
-  });
-
-  const session = this.sessionManager.createSession(input.deviceId);
-
-  this.stateManager.updateState({
-    monitoringActive: true,
-    activeSessions: this.sessionManager.getAllSessions().length
-  });
-
-  return {
-    success: true,
-    session
-  };
-}
-@Tool({
-  name: "stop_monitoring",
-  description: "Stops an active GuardianSense monitoring session.",
-  inputSchema: z.object({
-    sessionId: z.string().describe("Monitoring session ID")
+  @Tool({
+    name: "get_connected_devices",
+    description: "Returns all registered Guardian Bridge devices.",
+    inputSchema: z.object({}),
   })
-})
-async stopMonitoring(input: any, ctx: ExecutionContext) {
+  async getConnectedDevices(_input: unknown, ctx: ExecutionContext) {
+    ctx.logger.info("Connected devices requested");
+    return deviceRegistry.getAllDevices();
+  }
 
-  ctx.logger.info("Stopping monitoring", {
-    sessionId: input.sessionId
-  });
+  @Tool({
+    name: "start_monitoring",
+    description: "Starts a GuardianSense monitoring session.",
+    inputSchema: z.object({
+      deviceId: z.string().describe("Guardian Bridge device ID"),
+    }),
+  })
+  async startMonitoring(input: { deviceId: string }, ctx: ExecutionContext) {
+    ctx.logger.info("Starting monitoring", { deviceId: input.deviceId });
 
-  const success = this.sessionManager.stopSession(input.sessionId);
+    const session = sessionManager.createSession(input.deviceId);
 
-  this.stateManager.updateState({
-    monitoringActive: false,
-    activeSessions: this.sessionManager.getAllSessions()
-      .filter(session => session.monitoring).length
-  });
+    guardianStateManager.updateState({
+      monitoringActive: true,
+      activeSessions: sessionManager
+        .getAllSessions()
+        .filter((s) => s.monitoring).length,
+    });
 
-  return {
-    success
-  };
-}
+    return { success: true, session };
+  }
+
+  @Tool({
+    name: "stop_monitoring",
+    description: "Stops an active GuardianSense monitoring session.",
+    inputSchema: z.object({
+      sessionId: z.string().describe("Monitoring session ID"),
+    }),
+  })
+  async stopMonitoring(input: { sessionId: string }, ctx: ExecutionContext) {
+    ctx.logger.info("Stopping monitoring", { sessionId: input.sessionId });
+
+    const success = sessionManager.stopSession(input.sessionId);
+
+    guardianStateManager.updateState({
+      monitoringActive: false,
+      activeSessions: sessionManager
+        .getAllSessions()
+        .filter((session) => session.monitoring).length,
+    });
+
+    return { success };
+  }
 }

@@ -1,83 +1,102 @@
 import { DeviceRegistry } from "./device-registry.js";
 import { SessionManager } from "./session-manager.js";
 import { GuardianStateManager } from "./guardian-state-manager.js";
-import { GuardianAgent } from "./guardian-agent.js";
-import { GuardianAI } from "./guardian-ai.js";
+import { GuardianAI, GuardianAnalysis } from "./guardian-ai.js";
 import { updateLiveVitals } from "./live-state.js";
-import { websocketServer } from "../api/context";
 import { updateMonitorState } from "./monitor-state.js";
-import { updateAlert } from "./alert-state.js";
+import { Severity, updateAlert } from "./alert-state.js";
+import { packetRateTracker } from "./packet-rate-tracker.js";
+import { pushCsiSample } from "./csi-ring-buffer.js";
+
 export interface GuardianBridgeMessage {
-
   deviceId: string;
-
   timestamp: string;
-
   rawPacket: any;
+}
 
+export interface LiveEventBroadcaster {
+  broadcast(data: unknown): void;
+}
+
+const RISK_TO_SEVERITY: Record<string, Severity> = {
+  High: "high",
+  Medium: "medium",
+  Low: "medium",
+  Safe: "low",
+};
+
+function analysisToSeverity(analysis: GuardianAnalysis): Severity {
+  const severity = RISK_TO_SEVERITY[analysis.risk];
+  if (severity) {
+    return severity;
+  }
+  return analysis.movementDetected ? "medium" : "low";
 }
 
 export class GuardianCore {
+  private guardianAI = new GuardianAI();
 
   constructor(
     private deviceRegistry: DeviceRegistry,
     private sessionManager: SessionManager,
-    private stateManager: GuardianStateManager
+    private stateManager: GuardianStateManager,
+    private broadcaster: LiveEventBroadcaster
   ) {}
-  private guardianAgent = new GuardianAgent();
-  private guardianAI = new GuardianAI();
 
   processBridgeMessage(message: GuardianBridgeMessage) {
-    console.log("Bridge Packet:", message);
-
     const analysis = this.guardianAI.analyze(message.rawPacket);
-    if (analysis.risk === "High") {
+    const packetRate = packetRateTracker.record();
+    const csi: number[] = message.rawPacket?.csi ?? [];
 
-  updateAlert({
-    active: true,
-    title: "High Risk Detected",
-    message: "Respiration is outside the safe range.",
-    severity: "high",
-    time: new Date().toLocaleTimeString(),
-  });
+    pushCsiSample(csi);
 
-} else {
+    const severity = analysisToSeverity(analysis);
+    if (analysis.risk === "High" || analysis.movementDetected) {
+      updateAlert({
+        active: true,
+        title: analysis.risk === "High" ? "High Risk Detected" : "Movement Detected",
+        message:
+          analysis.risk === "High"
+            ? "Respiration is outside the safe range."
+            : "Motion detected; monitoring elevated activity.",
+        severity,
+        time: new Date().toLocaleTimeString(),
+      });
+    } else {
+      updateAlert({
+        active: false,
+        title: "",
+        message: "",
+        severity,
+        time: "",
+      });
+    }
 
-  updateAlert({
-    active: false,
-    title: "",
-    message: "",
-    severity: "low",
-    time: "",
-  });
+    updateLiveVitals({
+      respiration: analysis.respiration,
+      motion: analysis.motion,
+      confidence: analysis.confidence,
+      risk: analysis.risk,
+      csi,
+    });
 
-}
-// Store latest vitals including CSI
-updateLiveVitals({
-  ...analysis,
-  csi: message.rawPacket.csi,
-});
+    updateMonitorState({
+      packetRate,
+      rssi: message.rawPacket.rssi ?? -90,
+      activity: analysis.motion,
+      respiration: analysis.respiration,
+      confidence: analysis.confidence,
+    });
 
-// Update monitoring state
-updateMonitorState({
-  packetRate: 240,
-  rssi: message.rawPacket.rssi,
-  activity: analysis.motion,
-  respiration: analysis.respiration,
-  confidence: analysis.confidence,
-});
-
-console.log("Guardian AI:", analysis);
-console.log("CSI Length:", message.rawPacket.csi.length);
-
-// Broadcast live update
-websocketServer.broadcast({
-  event: "LIVE_UPDATE",
-  data: {
-    ...analysis,
-    csi: message.rawPacket.csi,
-  },
-});
+    this.broadcaster.broadcast({
+      event: "LIVE_UPDATE",
+      data: {
+        ...analysis,
+        csi,
+        packetRate,
+        rssi: message.rawPacket.rssi,
+      },
+    });
 
     this.deviceRegistry.updateHeartbeat(message.deviceId);
 
@@ -85,17 +104,14 @@ websocketServer.broadcast({
       connectedDevices: this.deviceRegistry.getAllDevices().length,
       activeSessions: this.sessionManager
         .getAllSessions()
-        .filter(session => session.monitoring).length
+        .filter((session) => session.monitoring).length,
     });
-console.log("Received Guardian Bridge packet");
 
-console.log(message);
-
-return {
-    processed: true,
-    deviceId: message.deviceId,
-    analysis
-};
+    return {
+      processed: true,
+      deviceId: message.deviceId,
+      analysis,
+      packetRate,
+    };
   }
-
 }

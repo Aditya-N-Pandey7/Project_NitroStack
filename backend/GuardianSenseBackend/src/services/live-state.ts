@@ -21,8 +21,6 @@ let respirationHistory: {
 }[] = [];
 
 export function updateLiveVitals(vitals: LiveVitals) {
-  console.log("updateLiveVitals called with:", vitals);
-
   latestVitals = vitals;
 
   respirationHistory.push({

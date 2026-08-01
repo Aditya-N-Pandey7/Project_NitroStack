@@ -1,9 +1,11 @@
-import { getAlert } from "../services/alert-state.js";
+import { getAlert, getAlertHistory } from "../services/alert-state.js";
 import { getMonitorState } from "../services/monitor-state.js";
 import {
   getLiveVitals,
   getRespirationHistory,
 } from "../services/live-state.js";
+import { getCsiRingBuffer, getLatestCsiAmplitudes } from "../services/csi-ring-buffer.js";
+import { packetRateTracker } from "../services/packet-rate-tracker.js";
 import express from "express";
 import cors from "cors";
 
@@ -183,6 +185,30 @@ app.get("/api/monitor", (req, res) => {
 });
 app.get("/api/alert", (req, res) => {
   res.json(getAlert());
+});
+app.get("/api/alert/history", (req, res) => {
+  res.json(getAlertHistory());
+});
+app.get("/api/health", (req, res) => {
+  const state = guardianStateManager.getState();
+  res.json({
+    online: state.backendOnline,
+    websocketClients: websocketServer.clientCount,
+    connectedDevices: state.connectedDevices,
+    activeSessions: state.activeSessions,
+    monitoringActive: state.monitoringActive,
+    packetRate: packetRateTracker.getRate(),
+    uptimeSeconds: Math.round(process.uptime()),
+  });
+});
+app.get("/api/csi/latest", (req, res) => {
+  res.json({ amplitudes: getLatestCsiAmplitudes() });
+});
+app.get("/api/csi/history", (req, res) => {
+  res.json(getCsiRingBuffer());
+});
+app.get("/api/packet-rate", (req, res) => {
+  res.json({ packetRate: packetRateTracker.getRate() });
 });
 app.listen(PORT, () => {
 

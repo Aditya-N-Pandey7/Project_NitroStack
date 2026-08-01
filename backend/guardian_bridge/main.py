@@ -1,33 +1,24 @@
 from runtime import GuardianRuntime
+from logger_config import setup_logging
+
+logger = setup_logging(__name__)
 
 
 def main():
-
     runtime = GuardianRuntime()
-
     runtime.start("../../datasets/raw/test_session.jsonl")
 
-    print("Guardian Bridge Started\n")
+    logger.info("Guardian Bridge running. Press Ctrl+C to stop.")
 
     try:
-
         while True:
-
-            packet = runtime.process_packet()
-
-            if packet:
-
-                print(packet)
-
+            import time
+            time.sleep(1)
     except KeyboardInterrupt:
-
-        print("\nStopping Guardian Bridge...")
-
+        logger.info("Stopping Guardian Bridge...")
     finally:
-
         runtime.stop()
 
 
 if __name__ == "__main__":
-
     main()

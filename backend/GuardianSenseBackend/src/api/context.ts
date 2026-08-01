@@ -8,10 +8,11 @@ export const sessionManager = new SessionManager();
 export const deviceRegistry = new DeviceRegistry();
 export const guardianStateManager = new GuardianStateManager();
 
+export const websocketServer = new GuardianWebSocketServer(8080);
+
 export const guardianCore = new GuardianCore(
     deviceRegistry,
     sessionManager,
-    guardianStateManager
+    guardianStateManager,
+    websocketServer
 );
-
-export const websocketServer = new GuardianWebSocketServer(8080);

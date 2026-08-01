@@ -33,14 +33,22 @@ Those responsibilities belong to the GuardianSense backend.
 ```
 guardian_bridge/
 
-├── config.py              # Configuration (COM port, baud rate)
+├── config.py              # Configuration (COM port, baud rate, logging, USB IDs)
+├── logger_config.py       # Console + rotating file logging setup
+├── port_detector.py       # Automatic ESP32 COM port discovery (VID/PID prioritized)
 ├── serial_manager.py      # Serial communication with ESP32-S3
 ├── packet_validator.py    # Filters valid CSI packets
 ├── csi_parser.py          # Converts raw CSI into structured Python objects
+├── binary_parser.py       # Parses raw binary CSI frames (Phase 4)
+├── api_client.py          # Forwards parsed packets to GuardianSense backend
 ├── dataset_writer.py      # Writes packets into JSONL datasets
-├── runtime.py             # Main Guardian Runtime
+├── runtime.py             # Main Guardian Runtime (reconnect + health aware)
 ├── recorder.py            # Dataset recording tool
 ├── main.py                # Runtime entry point
+├── health_metrics.py      # Runtime health/metrics collection
+├── health_server.py       # Optional HTTP health endpoint
+├── test_bridge.py         # Unit tests (parsers, validator, queue, API retry)
+├── test_runtime.py        # Runtime integration tests
 ├── requirements.txt       # Python dependencies
 └── README.md
 ```
@@ -134,13 +142,25 @@ python main.py
 
 Guardian Runtime will:
 
-- Search for ESP32-S3 Receiver
+- Search for ESP32-S3 Receiver (auto-detect COM port)
 - Connect automatically
 - Receive CSI packets
 - Validate packets
 - Parse packets
-- Save packets
+- Forward packets to the backend and/or save datasets
+- Detect serial disconnection and reconnect automatically
 - Continue until stopped
+
+---
+
+# Running Tests
+
+```bash
+python -m unittest test_bridge -v
+python -m unittest test_runtime -v
+```
+
+`test_bridge.py` covers both CSI schema variants (ESP32-S3 / C5-C6), packet validation, binary frame parsing, the drop-aware queue, and the API client retry policy.
 
 ---
 
@@ -160,6 +180,9 @@ PacketValidator
         │
         ▼
 CSIParser
+        │
+        ▼
+ApiClient ───────► POST /api/bridge (GuardianSense backend)
         │
         ▼
 DatasetWriter
@@ -189,11 +212,11 @@ Example:
 
 ---
 
-# Future Integration
+# Backend Integration
 
-Guardian Bridge is designed to integrate with the GuardianSense backend through REST APIs.
+Guardian Bridge forwards parsed CSI packets to the GuardianSense backend.
 
-Future pipeline:
+Pipeline:
 
 ```
 ESP32
@@ -201,7 +224,7 @@ ESP32
     ▼
 Guardian Bridge
     │
-POST /api/guardian/data
+POST /api/bridge
     │
 Guardian Core
     │
@@ -210,7 +233,7 @@ Guardian Agent
 Frontend Dashboard
 ```
 
-Guardian Bridge will remain responsible only for hardware communication and dataset generation.
+Guardian Bridge remains responsible only for hardware communication and dataset generation.
 
 ---
 
@@ -218,7 +241,7 @@ Guardian Bridge will remain responsible only for hardware communication and data
 
 Current Version:
 
-**Guardian Bridge v1.0**
+**Guardian Bridge v1.1**
 
 Status:
 
@@ -228,8 +251,14 @@ Completed Features:
 
 - Serial Communication
 - Auto Reconnect
+- Auto COM Port Detection
 - Runtime Manager
 - Dataset Recorder
 - Packet Validation
 - CSI Parsing
 - JSONL Dataset Generation
+- Backend API Forwarding
+- Rotating Logging
+- Runtime Health Endpoint
+- Binary Frame Parsing
+- Unit Test Suite

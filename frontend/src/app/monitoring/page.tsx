@@ -3,12 +3,21 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
+import CsiChart from "@/components/charts/CsiChart";
+import { useWebSocket } from "@/hooks/useWebSocket";
+
 interface MonitorData {
   packetRate: number;
   rssi: number;
   activity: string;
   respiration: number;
   confidence: number;
+}
+
+interface LiveUpdateData {
+  csi: number[];
+  packetRate: number;
+  rssi: number;
 }
 
 export default function MonitoringPage() {
@@ -20,67 +29,65 @@ export default function MonitoringPage() {
     confidence: 0,
   });
 
-  useEffect(() => {
-    const fetchMonitor = async () => {
-      try {
-        const res = await axios.get(
-          "http://localhost:5000/api/monitor"
-        );
+  const [csiAmplitudes, setCsiAmplitudes] = useState<number[]>([]);
 
-        setMonitor(res.data);
-      } catch (err) {
-        console.error(err);
-      }
+  const { connected } = useWebSocket<LiveUpdateData>({
+    onMessage: (message) => {
+      setCsiAmplitudes(message.csi ?? []);
+      setMonitor((prev) => ({
+        ...prev,
+        packetRate: message.packetRate ?? prev.packetRate,
+        rssi: message.rssi ?? prev.rssi,
+      }));
+    },
+  });
+
+  useEffect(() => {
+    const fetchMonitor = () => {
+      axios
+        .get("http://localhost:5000/api/monitor")
+        .then((res) => setMonitor(res.data))
+        .catch(console.error);
     };
 
     fetchMonitor();
-
-    const socket = new WebSocket("ws://localhost:8080");
-
-    socket.onmessage = async (event) => {
-      const message = JSON.parse(event.data);
-
-      if (message.event === "LIVE_UPDATE") {
-        fetchMonitor();
-      }
-    };
-
-    return () => socket.close();
+    const timer = setInterval(fetchMonitor, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const getSignalQuality = () => {
-  if (monitor.rssi >= -40) {
-    return {
-      text: "Excellent",
-      color: "text-green-400",
-      width: "100%",
-    };
-  }
+    if (monitor.rssi >= -40) {
+      return {
+        text: "Excellent",
+        color: "text-green-400",
+        width: "100%",
+      };
+    }
 
-  if (monitor.rssi >= -55) {
-    return {
-      text: "Good",
-      color: "text-yellow-400",
-      width: "75%",
-    };
-  }
+    if (monitor.rssi >= -55) {
+      return {
+        text: "Good",
+        color: "text-yellow-400",
+        width: "75%",
+      };
+    }
 
-  if (monitor.rssi >= -70) {
-    return {
-      text: "Fair",
-      color: "text-orange-400",
-      width: "50%",
-    };
-  }
+    if (monitor.rssi >= -70) {
+      return {
+        text: "Fair",
+        color: "text-orange-400",
+        width: "50%",
+      };
+    }
 
-  return {
-    text: "Weak",
-    color: "text-red-400",
-    width: "25%",
+    return {
+      text: "Weak",
+      color: "text-red-400",
+      width: "25%",
+    };
   };
-};
 
-const signal = getSignalQuality();
+  const signal = getSignalQuality();
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-10">
@@ -88,6 +95,15 @@ const signal = getSignalQuality();
       <h1 className="text-4xl font-bold mb-10">
         Guardian Monitoring
       </h1>
+
+      <div className="mb-4 flex items-center gap-2 text-sm text-slate-400">
+        <span
+          className={`inline-block h-2.5 w-2.5 rounded-full ${
+            connected ? "bg-emerald-400" : "bg-red-500"
+          }`}
+        />
+        {connected ? "Live feed connected" : "Reconnecting..."}
+      </div>
 
       <div className="grid grid-cols-3 gap-8">
 
@@ -156,52 +172,49 @@ const signal = getSignalQuality();
         <div className="bg-slate-900 rounded-xl p-8">
 
           <h2 className="text-2xl font-semibold mb-6">
+            Signal Quality
+          </h2>
+
+          <div className="space-y-6">
+
+            <div className="w-full bg-slate-700 rounded-full h-4">
+
+              <div
+                className="bg-cyan-400 h-4 rounded-full transition-all duration-500"
+                style={{ width: signal.width }}
+              />
+
+            </div>
+
+            <h3 className={`text-3xl font-bold ${signal.color}`}>
+              {signal.text}
+            </h3>
+
+            <p className="text-slate-300">
+              RSSI:
+              <span className="font-bold text-white">
+                {" "}
+                {monitor.rssi} dBm
+              </span>
+            </p>
+
+            <p className="text-slate-300">
+              Packet Rate:
+              <span className="font-bold text-white">
+                {" "}
+                {monitor.packetRate} pkt/s
+              </span>
+            </p>
+
+          </div>
+
+        </div>
+
+        <div className="bg-slate-900 rounded-xl p-8">
+
+          <h2 className="text-2xl font-semibold mb-6">
             Monitoring Status
           </h2>
-          <div className="bg-slate-900 rounded-xl p-8">
-
-  <h2 className="text-2xl font-semibold mb-6">
-    Signal Quality
-  </h2>
-
-  <div className="space-y-6">
-
-    <div>
-
-      <div className="w-full bg-slate-700 rounded-full h-4">
-
-        <div
-          className="bg-cyan-400 h-4 rounded-full transition-all duration-500"
-          style={{ width: signal.width }}
-        />
-
-      </div>
-
-    </div>
-
-    <h3 className={`text-3xl font-bold ${signal.color}`}>
-      {signal.text}
-    </h3>
-
-    <p className="text-slate-300">
-      RSSI:
-      <span className="font-bold text-white">
-        {" "}
-        {monitor.rssi} dBm
-      </span>
-    </p>
-
-    <p className="text-slate-300">
-      Packet Rate:
-      <span className="font-bold text-white">
-        {" "}
-        {monitor.packetRate} pkt/s
-      </span>
-    </p>
-
-  </div>
-
-</div>
 
           <div className="space-y-5">
 
@@ -225,6 +238,10 @@ const signal = getSignalQuality();
 
         </div>
 
+      </div>
+
+      <div className="mt-8">
+        <CsiChart amplitudes={csiAmplitudes} />
       </div>
 
     </main>

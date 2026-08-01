@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
+import { useWebSocket } from "@/hooks/useWebSocket";
+
 interface LiveData {
   respiration: number;
   motion: string;
@@ -18,29 +20,22 @@ export default function GuardianAIPage() {
     risk: "Unknown",
   });
 
+  const { connected } = useWebSocket<LiveData>({
+    onMessage: (message) => {
+      setLive({
+        respiration: message.respiration,
+        motion: message.motion,
+        confidence: message.confidence,
+        risk: message.risk,
+      });
+    },
+  });
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/live");
-        setLive(res.data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    fetchData();
-
-    const socket = new WebSocket("ws://localhost:8080");
-
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-
-      if (message.event === "LIVE_UPDATE") {
-        setLive(message.data);
-      }
-    };
-
-    return () => socket.close();
+    axios
+      .get("http://localhost:5000/api/live")
+      .then((res) => setLive(res.data))
+      .catch(console.error);
   }, []);
 
   const getAIExplanation = () => {
@@ -84,6 +79,15 @@ export default function GuardianAIPage() {
       <p className="text-slate-400 mb-10">
         Real-time AI Health Assessment
       </p>
+
+      <div className="mb-4 flex items-center gap-2 text-sm text-slate-400">
+        <span
+          className={`inline-block h-2.5 w-2.5 rounded-full ${
+            connected ? "bg-emerald-400" : "bg-red-500"
+          }`}
+        />
+        {connected ? "Live feed connected" : "Reconnecting..."}
+      </div>
 
       <div className="grid grid-cols-3 gap-8">
 
