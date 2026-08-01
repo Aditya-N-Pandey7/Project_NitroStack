@@ -6,19 +6,30 @@ import { WS_URL } from "@/services/api";
 
 interface UseWebSocketOptions<T> {
   onMessage?: (data: T) => void;
+  event?: string;
   reconnectDelayMs?: number;
+}
+
+interface Envelope {
+  event?: string;
+  data?: unknown;
 }
 
 export function useWebSocket<T = unknown>(
   options: UseWebSocketOptions<T> = {}
 ) {
-  const { onMessage, reconnectDelayMs = 3000 } = options;
+  const { onMessage, event, reconnectDelayMs = 3000 } = options;
   const [connected, setConnected] = useState(false);
   const onMessageRef = useRef(onMessage);
+  const eventRef = useRef(event);
 
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
+
+  useEffect(() => {
+    eventRef.current = event;
+  }, [event]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -30,10 +41,16 @@ export function useWebSocket<T = unknown>(
 
       socket.onopen = () => setConnected(true);
 
-      socket.onmessage = (event) => {
+      socket.onmessage = (raw) => {
         try {
-          const message = JSON.parse(event.data);
-          onMessageRef.current?.(message as T);
+          const message = JSON.parse(raw.data) as Envelope;
+
+          if (eventRef.current && message.event !== eventRef.current) {
+            return;
+          }
+
+          const payload = (message.data ?? message) as T;
+          onMessageRef.current?.(payload);
         } catch (err) {
           console.error("WebSocket parse error:", err);
         }

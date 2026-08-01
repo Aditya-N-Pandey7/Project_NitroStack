@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import {
+  Brain,
+  CheckCircle2,
+  HeartPulse,
+  Lightbulb,
+  ShieldAlert,
+} from "lucide-react";
 
+import api from "@/services/api";
+import Sidebar from "@/components/layout/Sidebar";
+import Navbar from "@/components/layout/Navbar";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 interface LiveData {
@@ -12,15 +21,46 @@ interface LiveData {
   risk: string;
 }
 
+function getAIExplanation(live: LiveData) {
+  if (live.risk === "High") {
+    return {
+      title: "Potential health concern detected",
+      reasoning:
+        "Respiration is outside the expected range. Guardian AI recommends immediate attention and closer observation.",
+      recommendation:
+        "Notify caregiver and continue continuous monitoring.",
+    };
+  }
+
+  if (live.motion === "Walking") {
+    return {
+      title: "Normal walking activity detected",
+      reasoning:
+        "CSI signal energy indicates sustained body movement while respiration remains stable.",
+      recommendation:
+        "Continue monitoring. No intervention is currently required.",
+    };
+  }
+
+  return {
+    title: "Patient appears stationary",
+    reasoning:
+      "Minimal body movement detected with respiration inside the expected healthy range.",
+    recommendation:
+      "Continue passive monitoring. No abnormal behavior detected.",
+  };
+}
+
 export default function GuardianAIPage() {
   const [live, setLive] = useState<LiveData>({
     respiration: 0,
-    motion: "Waiting...",
+    motion: "Waiting…",
     confidence: 0,
     risk: "Unknown",
   });
 
   const { connected } = useWebSocket<LiveData>({
+    event: "LIVE_UPDATE",
     onMessage: (message) => {
       setLive({
         respiration: message.respiration,
@@ -32,135 +72,125 @@ export default function GuardianAIPage() {
   });
 
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/live")
+    api
+      .get("/live")
       .then((res) => setLive(res.data))
-      .catch(console.error);
+      .catch(() => undefined);
   }, []);
 
-  const getAIExplanation = () => {
-    if (live.risk === "High") {
-      return {
-        summary: "Potential health concern detected.",
-        reasoning:
-          "Respiration is outside the expected range. Guardian AI recommends immediate attention and closer observation.",
-        recommendation:
-          "Notify caregiver and continue continuous monitoring.",
-      };
-    }
-
-    if (live.motion === "Walking") {
-      return {
-        summary: "Normal walking activity detected.",
-        reasoning:
-          "CSI signal energy indicates sustained body movement while respiration remains stable.",
-        recommendation:
-          "Continue monitoring. No intervention is currently required.",
-      };
-    }
-
-    return {
-      summary: "Patient appears stationary.",
-      reasoning:
-        "Minimal body movement detected with respiration inside the expected healthy range.",
-      recommendation:
-        "Continue passive monitoring. No abnormal behavior detected.",
-    };
-  };
-
-  const ai = getAIExplanation();
+  const ai = getAIExplanation(live);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-10">
-      <h1 className="text-4xl font-bold mb-2">
-        Guardian AI
-      </h1>
+    <main className="flex min-h-screen bg-background">
+      <Sidebar />
 
-      <p className="text-slate-400 mb-10">
-        Real-time AI Health Assessment
-      </p>
+      <section className="flex-1 min-w-0">
+        <Navbar />
 
-      <div className="mb-4 flex items-center gap-2 text-sm text-slate-400">
-        <span
-          className={`inline-block h-2.5 w-2.5 rounded-full ${
-            connected ? "bg-emerald-400" : "bg-red-500"
-          }`}
-        />
-        {connected ? "Live feed connected" : "Reconnecting..."}
-      </div>
+        <div className="p-4 sm:p-8">
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
+            Guardian AI
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Real-time AI health assessment
+          </p>
 
-      <div className="grid grid-cols-3 gap-8">
+          <div className="mb-6 mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className={`h-2.5 w-2.5 rounded-full ${
+                connected ? "bg-success" : "bg-destructive"
+              }`}
+            />
+            {connected ? "Live feed connected" : "Reconnecting…"}
+          </div>
 
-        {/* Current Assessment */}
-        <div className="bg-slate-900 rounded-xl p-8">
-          <h2 className="text-2xl font-semibold mb-6">
-            Current Assessment
-          </h2>
-
-          <div className="space-y-5">
-            <div>
-              <span className="text-slate-400">Respiration</span>
-              <h3 className="text-3xl font-bold">
-                {live.respiration} BPM
-              </h3>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="rounded-xl border border-border bg-card p-6">
+              <h2 className="mb-6 flex items-center gap-2 text-base font-bold text-card-foreground">
+                <Brain size={18} className="text-primary" aria-hidden="true" />
+                Current Assessment
+              </h2>
+              <div className="space-y-5">
+                {[
+                  {
+                    label: "Respiration",
+                    value: `${live.respiration} bpm`,
+                    icon: HeartPulse,
+                  },
+                  { label: "Motion", value: live.motion, icon: Brain },
+                  {
+                    label: "Confidence",
+                    value: `${live.confidence}%`,
+                    icon: CheckCircle2,
+                  },
+                  {
+                    label: "Risk",
+                    value: live.risk,
+                    icon: ShieldAlert,
+                    tone:
+                      live.risk === "High"
+                        ? "text-destructive"
+                        : live.risk === "Medium"
+                          ? "text-warning"
+                          : "text-success",
+                  },
+                ].map(({ label, value, icon: Icon, tone }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                      <Icon size={16} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p
+                        className={`truncate text-lg font-bold tabular-nums ${tone ?? "text-foreground"}`}
+                      >
+                        {value}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div>
-              <span className="text-slate-400">Motion</span>
-              <h3 className="text-3xl font-bold">
-                {live.motion}
-              </h3>
-            </div>
+            <div className="rounded-xl border border-border bg-card p-6 lg:col-span-2">
+              <h2 className="mb-6 flex items-center gap-2 text-base font-bold text-card-foreground">
+                <Lightbulb size={18} className="text-primary" aria-hidden="true" />
+                AI Explanation
+              </h2>
 
-            <div>
-              <span className="text-slate-400">Confidence</span>
-              <h3 className="text-3xl font-bold">
-                {live.confidence}%
-              </h3>
-            </div>
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-primary">
+                    Summary
+                  </h3>
+                  <p className="mt-1 text-base font-semibold leading-7 text-foreground">
+                    {ai.title}
+                  </p>
+                </div>
 
-            <div>
-              <span className="text-slate-400">Risk</span>
-              <h3 className="text-3xl font-bold text-cyan-400">
-                {live.risk}
-              </h3>
+                <div className="rounded-lg bg-muted p-4">
+                  <h3 className="text-sm font-semibold text-primary">
+                    Reasoning
+                  </h3>
+                  <p className="mt-1 leading-7 text-muted-foreground">
+                    {ai.reasoning}
+                  </p>
+                </div>
+
+                <div className="border-t border-border pt-6">
+                  <h3 className="text-sm font-semibold text-primary">
+                    Recommendation
+                  </h3>
+                  <p className="mt-1 leading-7 text-muted-foreground">
+                    {ai.recommendation}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* AI Explanation */}
-        <div className="bg-slate-900 rounded-xl p-8">
-          <h2 className="text-2xl font-semibold mb-6">
-            AI Explanation
-          </h2>
-
-          <div className="space-y-6 leading-8 text-slate-300">
-
-            <div>
-              <h3 className="text-lg font-semibold text-cyan-400 mb-2">
-                Summary
-              </h3>
-              <p>{ai.summary}</p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold text-cyan-400 mb-2">
-                Reasoning
-              </h3>
-              <p>{ai.reasoning}</p>
-            </div>
-
-            <div className="border-t border-slate-700 pt-6">
-              <h3 className="text-lg font-semibold text-cyan-400 mb-2">
-                Recommendation
-              </h3>
-              <p>{ai.recommendation}</p>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
+      </section>
     </main>
   );
 }
