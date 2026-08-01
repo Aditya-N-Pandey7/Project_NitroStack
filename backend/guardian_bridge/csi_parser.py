@@ -8,37 +8,53 @@ class CSIParser:
 
         try:
 
-            # -----------------------------
-            # Extract CSI array
-            # -----------------------------
+            # Serial returns bytes
+            if isinstance(line, bytes):
+                line = line.decode("utf-8", errors="ignore")
 
-            match = re.search(r'"\[(.*?)\]"', line)
+            line = line.strip()
+
+            if not line.startswith("CSI_DATA"):
+                return None
+
+            # ----------------------------
+            # Extract CSI values
+            # ----------------------------
+
+            match = re.search(r"\[(.*?)\]", line)
 
             if not match:
                 return None
 
-            csi_string = match.group(1)
-
             csi = []
 
-            for value in csi_string.split(","):
+            for value in match.group(1).split(","):
 
                 value = value.strip()
 
                 if value == "":
                     continue
 
-                csi.append(int(value))
+                try:
+                    csi.append(int(value))
+                except ValueError:
+                    pass
 
-            # -----------------------------
-            # Remove quoted CSI array
-            # -----------------------------
+            # ----------------------------
+            # Remove CSI array
+            # ----------------------------
 
-            header = re.sub(r'"\[.*?\]"', "", line)
+            header = re.sub(r"\[.*?\]", "", line)
+
+            header = header.replace('"', "")
 
             header = header.rstrip(",")
 
-            parts = header.split(",")
+            parts = [p.strip() for p in header.split(",")]
+
+            if len(parts) < 23:
+                print("Incomplete packet:", len(parts))
+                return None
 
             packet = {
 

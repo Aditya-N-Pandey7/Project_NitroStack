@@ -5,6 +5,11 @@ from serial_manager import SerialManager
 from packet_validator import PacketValidator
 from csi_parser import CSIParser
 from dataset_writer import DatasetWriter
+from api_client import (
+    send_packet,
+    register_device,
+    start_monitoring,
+)
 
 
 class GuardianRuntime:
@@ -29,6 +34,9 @@ class GuardianRuntime:
                 self.serial_manager = SerialManager()
 
                 print("Receiver Connected!\n")
+
+                register_device()
+                start_monitoring()
 
                 break
 
@@ -65,13 +73,33 @@ class GuardianRuntime:
         if not line:
             return None
 
+        print("\n================ RAW PACKET ================")
         print(line)
+        print("============================================\n")
 
-        return line
+        line = line.decode(errors="ignore").strip()
+
+        if not PacketValidator.is_valid(line):
+            return None
+
+        packet = CSIParser.parse(line)
+
+        if packet:
+            print("\nPARSED PACKET")
+            print(packet)
+
+        if packet is None:
+            return None
+
+        # Save packet locally
+        self.writer.save(packet)
+
+        # Send packet to Guardian Backend
+        send_packet(packet)
+
+        return packet
 
     def record(self, duration):
-
-        import time
 
         start_time = time.time()
 
@@ -82,7 +110,6 @@ class GuardianRuntime:
             packet = self.process_packet()
 
             if packet:
-
                 packet_count += 1
 
         return packet_count
