@@ -15,6 +15,7 @@ __pycache__/
 
 # Logs
 *.log
+backend/guardian_bridge/*.log
 
 # OS
 Thumbs.db
@@ -23,9 +24,10 @@ Thumbs.db
 # Environment
 .env
 
-# Guardian Bridge output
-backend/guardian_bridge/guardian_data.jsonl
+# Raw Datasets
+datasets/raw/*.jsonl
+datasets/raw/**/*.jsonl
+!datasets/**/.gitkeep
 
-# Python cache
-__pycache__/
-*.pyc
+# Guardian Bridge output
+backend/guardian_bridge/guardian_data.jsonl

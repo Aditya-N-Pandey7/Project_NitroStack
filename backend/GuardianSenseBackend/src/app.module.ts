@@ -1,5 +1,4 @@
 import { McpApp, Module, ConfigModule } from '@nitrostack/core';
-import { CalculatorModule } from './modules/calculator/calculator.module.js';
 import { SystemHealthCheck } from './health/system.health.js';
 import { GuardianModule } from './modules/guardian/guardian.module.js';
 /**
@@ -23,7 +22,6 @@ import { GuardianModule } from './modules/guardian/guardian.module.js';
   description: 'Root application module',
   imports: [
   ConfigModule.forRoot(),
-  CalculatorModule,
   GuardianModule
 ],
   providers: [
